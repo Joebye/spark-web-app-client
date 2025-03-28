@@ -1,64 +1,63 @@
-import { CircularProgress, Container, Table, TableBody, TableCell, TableHead, TableRow, Typography } from "@mui/material";
+import { Button, CircularProgress, Container, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-
-
-const API_URL = "http://localhost:3001/logs";
+import { sparkJobService } from "./configCommon/service-config";
+import SparkJobModel from "./model/SparkJobModel";
+import Chart from "./components/Chart";
+import Grid from "./components/Grid";
 
 export default function Dashboard() {
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState<SparkJobModel[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(API_URL)
-      .then((res) => res.json())
-      .then((data) => {
-        setLogs(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchLogs();
   }, []);
 
-  console.log(logs);
+  const fetchLogs = async () => {
+    try {
+      const sparkJobs = await sparkJobService.getAllJobs();
+      if (sparkJobs && Array.isArray(sparkJobs)) {
+        setLogs(sparkJobs);
+      } else {
+        setLogs([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch logs:", error);
+      setLogs([]); 
+    } finally {
+      setLoading(false); 
+  }
+}
+
+  const generateRandomJob = async () => {
+    const newJob: SparkJobModel = {
+      jobId: `job_${Math.floor(Math.random() * 1000)}`,
+      runTime: Math.floor(Math.random() * 10000) + 1000, 
+      executorCount: Math.floor(Math.random() * 10) + 1,
+      errors: Math.random() > 0.8 ? "Timeout Error" : "None", 
+    };
+
+   const postJobRes = await sparkJobService.postJob(newJob)
+    if (postJobRes) {
+      fetchLogs();
+    }
+  };
   
 
   return (
     <Container>
       <Typography variant="h4" gutterBottom>Apache Spark Job Monitoring</Typography>
+
+      <Button variant="contained" color="primary" onClick={generateRandomJob} sx={{ mb: 2 }}>
+        Generate Random Job
+      </Button>
+      
       {loading ? (
         <CircularProgress />
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={logs} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="jobId" />
-              <YAxis />
-              <Tooltip />
-              <Area type="monotone" dataKey="runTime" stroke="#8884d8" fill="#8884d8" />
-            </AreaChart>
-          </ResponsiveContainer>
-
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Job ID</TableCell>
-                <TableCell>Run Time (ms)</TableCell>
-                <TableCell>Executors</TableCell>
-                <TableCell>Errors</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {logs.map((log:any) => (
-                <TableRow key={log.jobId}>
-                  <TableCell>{log.jobId}</TableCell>
-                  <TableCell>{log.runTime}</TableCell>
-                  <TableCell>{log.executorCount}</TableCell>
-                  <TableCell>{log.errors || "None"}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <Chart sparkLogs={logs}/>
+        <Grid sparkLogs={logs}/>
         </>
       )}
     </Container>
